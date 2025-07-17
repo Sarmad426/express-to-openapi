@@ -14,34 +14,41 @@ Traditional OpenAPI generators make assumptions about your API. This tool **anal
 - 🏷️ **Intelligent Type Inference**: Infers correct data types (string, integer, boolean)
 - 📝 **Multiple Output Formats**: Supports both JSON and YAML output
 - ✨ **Schema Generation**: Creates request/response schemas from actual code usage
-- 🚫 **Smart Filtering**: Excludes middleware, error handlers, and non-API routes
 - 🔧 **Router Pattern Support**: Works with both `app.get()` and `router.get()` patterns
 - 📦 **ES6 Module Support**: Handles modern JavaScript imports and exports
 
 ## Installation
 
-### Global Installation (Recommended for CLI)
+### Global Installation (Required)
 
 ```bash
 npm install -g express-to-openapi
 ```
 
-### One-time Usage (No Installation)
+> **Note**: This is a CLI tool designed for global installation. Local installation is not supported.
+
+### Alternative: One-time Usage (No Installation)
 
 ```bash
 npx express-to-openapi <path-to-app.js> [json|yaml]
 ```
 
-### Local Installation (Not Recommended for CLI)
+## Quick Start
 
 ```bash
-npm install express-to-openapi
-# Then use: npx express-to-openapi <path-to-app.js> [json|yaml]
+# 1. Install globally
+npm install -g express-to-openapi
+
+# 2. Generate OpenAPI spec
+express-to-openapi src/app.js
+
+# 3. View generated specification
+cat openapi.json
 ```
 
 ## Usage
 
-### Basic Usage
+### Basic Commands
 
 ```bash
 # Generate JSON specification (default)
@@ -50,18 +57,8 @@ express-to-openapi src/app.js
 # Generate YAML specification
 express-to-openapi src/app.js yaml
 
-# Specify output format explicitly
-express-to-openapi src/app.js json
-```
-
-### Using with npx (No Installation Required)
-
-```bash
-# Generate JSON specification
-npx express-to-openapi src/app.js
-
-# Generate YAML specification
-npx express-to-openapi src/app.js yaml
+# Using npx (no installation required)
+npx express-to-openapi src/app.js json
 ```
 
 ### Example Output
@@ -69,41 +66,33 @@ npx express-to-openapi src/app.js yaml
 ```bash
 🔍 Analyzing Express.js application...
 ✅ OpenAPI spec generated at: /path/to/your/project/openapi.json
-📊 Found 5 route(s)
+📊 Found 4 route(s)
 
 📋 Detected routes:
   GET / (0 params)
   POST / (1 params)
   PATCH /{id} (1 params)
   DELETE /{id} (1 params)
-  GET /search (1 params) + query
 ```
 
 ## What Makes This Tool Accurate
 
-### 1. **Correct Status Codes**
-- ✅ Analyzes `res.status()` calls to determine actual response codes
-- ✅ Distinguishes between `200` (success) and `201` (created) responses
-- ✅ Only includes status codes that are actually used in the route handler
-- ✅ Detects error handling patterns in try/catch blocks
+### ✅ **Correct Status Codes**
+- Analyzes actual `res.status()` calls in your code
+- Only includes status codes that are actually used
+- Detects error handling patterns in try/catch blocks
 
-### 2. **Enhanced Parameter Detection**
-- **Path Parameters**: Converts `:id` to `{id}` format with correct types
-- **Query Parameters**: Detects `req.query.param` and destructuring patterns
-- **Request Body**: Analyzes `req.body` usage and destructuring
-- **Type Inference**: Recognizes common patterns (e.g., `completed` as boolean)
+### ✅ **Enhanced Parameter Detection**
+- **Path Parameters**: Converts `:id` to `{id}` format
+- **Query Parameters**: Detects `req.query.param` usage
+- **Request Body**: Analyzes `req.body` and destructuring patterns
+- **Type Inference**: Recognizes `completed` as boolean, `age` as integer, etc.
 
-### 3. **Intelligent Schema Generation**
-- **Response Analysis**: Examines `res.json()` calls to infer response structures
-- **MongoDB/Mongoose Support**: Recognizes common database patterns
-- **Array vs Object Detection**: Distinguishes between single objects and arrays
-- **Property Type Inference**: Infers types from property names and usage
-
-### 4. **Router Pattern Support**
-- **Express App**: Supports `app.get()`, `app.post()`, etc.
-- **Express Router**: Supports `router.get()`, `router.post()`, etc.
-- **ES6 Modules**: Handles `import { Router } from 'express'`
-- **CommonJS**: Supports `const express = require('express')`
+### ✅ **Intelligent Schema Generation**
+- Examines `res.json()` calls to infer response structures
+- Recognizes MongoDB/Mongoose patterns
+- Distinguishes between arrays and single objects
+- Infers property types from usage patterns
 
 ## Example: Todo API
 
@@ -176,7 +165,7 @@ paths:
       summary: GET /
       operationId: get
       tags:
-        - default
+        - Todos
       responses:
         200:
           description: Success
@@ -206,7 +195,7 @@ paths:
       summary: POST /
       operationId: post
       tags:
-        - default
+        - Todos
       requestBody:
         required: true
         content:
@@ -246,7 +235,7 @@ paths:
       summary: PATCH /{id}
       operationId: patchid
       tags:
-        - default
+        - Todos
       parameters:
         - name: id
           in: path
@@ -296,76 +285,108 @@ paths:
                     type: string
 ```
 
-## Local Development
+## Supported Express.js Patterns
+
+- ✅ `app.get()`, `app.post()`, `app.put()`, `app.patch()`, `app.delete()`
+- ✅ `router.get()`, `router.post()`, `router.put()`, `router.patch()`, `router.delete()`
+- ✅ `import { Router } from 'express'` (ES6 modules)
+- ✅ `const express = require('express')` (CommonJS)
+- ✅ Async/await and Promise patterns
+- ✅ MongoDB/Mongoose patterns
+- ✅ Try/catch error handling
+
+## Common Use Cases
+
+### 1. **API Documentation Generation**
+```bash
+express-to-openapi src/routes/api.js yaml
+```
+
+### 2. **Multiple Route Files**
+```bash
+# Generate specs for different route files
+express-to-openapi src/routes/users.js json
+express-to-openapi src/routes/products.js yaml
+```
+
+### 3. **Integration with Documentation Tools**
+```bash
+# Generate YAML for Swagger UI
+express-to-openapi src/app.js yaml
+
+# Generate JSON for Postman import
+express-to-openapi src/app.js json
+```
+
+## Troubleshooting
+
+### Command Not Found
+```bash
+# If you get "command not found" error
+npm install -g express-to-openapi
+
+# Verify installation
+express-to-openapi --help
+```
+
+### Permission Issues
+```bash
+# On macOS/Linux, use sudo if needed
+sudo npm install -g express-to-openapi
+```
+
+### No Routes Detected
+- Ensure your file exports routes using `app.get()` or `router.get()` patterns
+- Check that your JavaScript syntax is valid
+- Verify the file path is correct
+
+## Command Line Options
 
 ```bash
-# Clone this repository
+# Basic usage
+express-to-openapi <file> [format]
+
+# Examples
+express-to-openapi src/app.js          # JSON output (default)
+express-to-openapi src/app.js json     # JSON output
+express-to-openapi src/app.js yaml     # YAML output
+
+# Using npx
+npx express-to-openapi src/app.js json
+```
+
+## Development
+
+```bash
+# Clone and setup
 git clone https://github.com/Sarmad426/express-to-openapi.git
 cd express-to-openapi
-
-# Install dependencies
 npm install
 
-# Run the tool locally
+# Test locally
 node src/express-to-openapi.js src/app.js
 
 # Run tests
 npm test
 ```
 
-## Testing
-
-Run the comprehensive test suite:
-
-```bash
-npm test
-```
-
-The test suite validates:
-- ✅ Correct status codes for different endpoints
-- ✅ Proper parameter detection and typing
-- ✅ Accurate schema generation
-- ✅ Exclusion of non-API routes
-- ✅ Response structure validation
-- ✅ Router pattern support
-- ✅ ES6 module compatibility
-
 ## Package Information
 
-- **Package Type**: CLI Tool (designed for global installation)
-- **Main Entry**: `src/express-to-openapi.js`
-- **Binary Command**: `express-to-openapi`
+- **Type**: Global CLI Tool
 - **Node Version**: `>=14.0.0`
 - **License**: MIT
-
-## Supported Express.js Patterns
-
-- ✅ `app.get()`, `app.post()`, `app.put()`, `app.patch()`, `app.delete()`
-- ✅ `router.get()`, `router.post()`, `router.put()`, `router.patch()`, `router.delete()`
-- ✅ `import { Router } from 'express'`
-- ✅ `const express = require('express')`
-- ✅ ES6 modules and CommonJS
-- ✅ Async/await and Promise patterns
-- ✅ MongoDB/Mongoose patterns
-- ✅ Try/catch error handling
+- **Binary**: `express-to-openapi`
 
 ## Contributing
 
-Contributions are welcome! Please feel free to:
-
 1. **Report Issues**: [GitHub Issues](https://github.com/Sarmad426/express-to-openapi/issues)
-2. **Submit Pull Requests**: Fork the repository and submit PRs
-3. **Suggest Features**: Open an issue with feature requests
-4. **Improve Documentation**: Help improve this README
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details.
+2. **Submit PRs**: Fork → Branch → PR
+3. **Feature Requests**: Open an issue with your idea
 
 ## Links
 
-- **GitHub Repository**: [https://github.com/Sarmad426/express-to-openapi](https://github.com/Sarmad426/express-to-openapi)
-- **npm Package**: [https://www.npmjs.com/package/express-to-openapi](https://www.npmjs.com/package/express-to-openapi)
+- **GitHub**: [https://github.com/Sarmad426/express-to-openapi](https://github.com/Sarmad426/express-to-openapi)
+- **npm**: [https://www.npmjs.com/package/express-to-openapi](https://www.npmjs.com/package/express-to-openapi)
 - **Issues**: [https://github.com/Sarmad426/express-to-openapi/issues](https://github.com/Sarmad426/express-to-openapi/issues)
 
 ---
