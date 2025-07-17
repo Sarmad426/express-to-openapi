@@ -1,6 +1,6 @@
 {
   "name": "express-to-openapi",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "🚀 Convert Express.js applications to OpenAPI 3.0 specifications and schema generation",
   "main": "src/express-to-openapi.js",
   "type": "module",
