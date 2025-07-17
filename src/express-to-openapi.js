@@ -80,27 +80,47 @@ function extractRoutesFromExpressApp(fileContent) {
         });
       }
 
-      // Enhanced request body analysis with type inference
+      // Enhanced request body analysis with accurate type inference
       const bodyMatches = handlerCode.match(/req\.body\.(\w+)/g);
       if (bodyMatches) {
         const bodyProps = new Map();
         bodyMatches.forEach((match) => {
           const prop = match.replace("req.body.", "");
 
-          // Try to infer type from common patterns
+          // Enhanced type inference with more accurate patterns
           let type = "string";
-          if (prop.includes("id") || prop.includes("Id")) {
-            type = "string";
-          } else if (
-            prop.includes("completed") ||
-            prop.includes("active") ||
-            prop.includes("enabled")
+
+          // Look for context clues in the surrounding code
+          const propContext = handlerCode.toLowerCase();
+
+          if (
+            prop === "completed" ||
+            prop === "active" ||
+            prop === "enabled" ||
+            prop === "published"
           ) {
             type = "boolean";
           } else if (
-            prop.includes("count") ||
-            prop.includes("age") ||
-            prop.includes("price")
+            prop === "age" ||
+            prop === "count" ||
+            prop === "price" ||
+            prop === "quantity"
+          ) {
+            type = "integer";
+          } else if (
+            prop === "rating" ||
+            prop === "score" ||
+            prop === "percentage"
+          ) {
+            type = "number";
+          } else if (
+            propContext.includes(`${prop.toLowerCase()}: true`) ||
+            propContext.includes(`${prop.toLowerCase()}: false`)
+          ) {
+            type = "boolean";
+          } else if (
+            propContext.includes(`parseint(req.body.${prop.toLowerCase()})`) ||
+            propContext.includes(`number(req.body.${prop.toLowerCase()})`)
           ) {
             type = "integer";
           }
@@ -115,8 +135,15 @@ function extractRoutesFromExpressApp(fileContent) {
           bodyProps.forEach((type, prop) => {
             properties[prop] = { type };
 
-            // Mark common required fields
-            if (prop === "title" || prop === "name" || prop === "email") {
+            // Mark required fields based on validation patterns
+            if (
+              handlerCode.includes(`!req.body.${prop}`) ||
+              handlerCode.includes(`req.body.${prop} === undefined`) ||
+              handlerCode.includes(`req.body.${prop} === null`) ||
+              prop === "title" ||
+              prop === "name" ||
+              prop === "email"
+            ) {
               required.push(prop);
             }
           });
@@ -136,7 +163,7 @@ function extractRoutesFromExpressApp(fileContent) {
         }
       }
 
-      // Extract body parameter destructuring patterns with type inference
+      // Extract body parameter destructuring patterns with accurate type inference
       const bodyDestructureMatches = handlerCode.match(
         /const\s*\{\s*([^}]+)\s*\}\s*=\s*req\.body/g
       );
@@ -149,26 +176,40 @@ function extractRoutesFromExpressApp(fileContent) {
             const required = [];
 
             props.forEach((prop) => {
-              // Infer type from property name
+              // Enhanced type inference
               let type = "string";
+
               if (
-                prop.includes("completed") ||
-                prop.includes("active") ||
-                prop.includes("enabled")
+                prop === "completed" ||
+                prop === "active" ||
+                prop === "enabled" ||
+                prop === "published"
               ) {
                 type = "boolean";
               } else if (
-                prop.includes("count") ||
-                prop.includes("age") ||
-                prop.includes("price")
+                prop === "age" ||
+                prop === "count" ||
+                prop === "price" ||
+                prop === "quantity"
               ) {
                 type = "integer";
+              } else if (
+                prop === "rating" ||
+                prop === "score" ||
+                prop === "percentage"
+              ) {
+                type = "number";
               }
 
               bodyProps.set(prop, type);
 
-              // Mark common required fields
-              if (prop === "title" || prop === "name" || prop === "email") {
+              // Mark required fields
+              if (
+                handlerCode.includes(`!${prop}`) ||
+                prop === "title" ||
+                prop === "name" ||
+                prop === "email"
+              ) {
                 required.push(prop);
               }
             });
@@ -196,7 +237,7 @@ function extractRoutesFromExpressApp(fileContent) {
         });
       }
 
-      // Enhanced response analysis with schema detection
+      // Enhanced response analysis with precise status code and schema detection
       const responsePatterns = [
         {
           pattern: /res\.status\(\s*(\d+)\s*\)\.json\s*\(\s*([^)]+)\s*\)/g,
@@ -232,7 +273,8 @@ function extractRoutesFromExpressApp(fileContent) {
             const schema = analyzeResponseSchema(
               dataExpression,
               handlerCode,
-              statusCode
+              statusCode,
+              match[0] // Pass the full match for better context
             );
 
             analysis.responses[statusCode] = {
@@ -247,82 +289,82 @@ function extractRoutesFromExpressApp(fileContent) {
         }
       });
 
-      // Add specific error responses based on code analysis
+      // Enhanced error handling analysis - only add errors that are actually present
       if (handlerCode.includes("try") && handlerCode.includes("catch")) {
-        // Look for specific error handling patterns
-        const errorPatterns = [
-          { pattern: /catch.*res\.status\(\s*(\d+)\s*\)/, type: "specific" },
-          { pattern: /catch.*res\.status\(\s*500\s*\)/, type: "server" },
-          { pattern: /catch.*res\.status\(\s*400\s*\)/, type: "client" },
-        ];
-
-        let hasSpecificErrorHandling = false;
-        errorPatterns.forEach(({ pattern, type }) => {
-          const errorMatch = handlerCode.match(pattern);
-          if (errorMatch) {
-            hasSpecificErrorHandling = true;
-            const errorCode = errorMatch[1] || "500";
-
-            if (!analysis.responses[errorCode]) {
-              analysis.responses[errorCode] = {
-                description: getResponseDescription(errorCode),
-                content: {
-                  "application/json": {
-                    schema: {
-                      type: "object",
-                      properties: {
-                        message: { type: "string" },
+        // Look for specific error status codes in catch blocks
+        const catchBlocks = handlerCode.match(/catch\s*\([^)]*\)\s*\{[^}]*\}/g);
+        if (catchBlocks) {
+          catchBlocks.forEach((catchBlock) => {
+            const statusMatches = catchBlock.match(
+              /res\.status\(\s*(\d+)\s*\)/g
+            );
+            if (statusMatches) {
+              statusMatches.forEach((statusMatch) => {
+                const statusCode = statusMatch.match(/\d+/)[0];
+                if (!analysis.responses[statusCode]) {
+                  analysis.responses[statusCode] = {
+                    description: getResponseDescription(statusCode),
+                    content: {
+                      "application/json": {
+                        schema: {
+                          type: "object",
+                          properties: {
+                            message: { type: "string" },
+                          },
+                        },
                       },
                     },
-                  },
-                },
-              };
+                  };
+                }
+              });
             }
-          }
-        });
-
-        // Add generic 500 only if no specific error handling found
-        if (!hasSpecificErrorHandling && !analysis.responses["500"]) {
-          analysis.responses["500"] = {
-            description: "Internal Server Error",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    message: { type: "string" },
-                  },
-                },
-              },
-            },
-          };
+          });
         }
       }
 
-      // Add 404 for routes with ID params that check for existence
-      if (
-        handlerCode.includes("findById") ||
-        handlerCode.includes("findByIdAndUpdate") ||
-        handlerCode.includes("findByIdAndDelete")
-      ) {
-        if (handlerCode.includes("not found") || handlerCode.includes("404")) {
+      // Enhanced 404 detection - only add if explicitly handled
+      const notFoundPatterns = [
+        /if\s*\(\s*!.*\)\s*\{[^}]*res\.status\(\s*404\s*\)/,
+        /if\s*\(\s*!.*\)\s*\{[^}]*return\s+res\.status\(\s*404\s*\)/,
+        /if\s*\(\s*!.*\)\s*return\s+res\.status\(\s*404\s*\)/,
+      ];
+
+      notFoundPatterns.forEach((pattern) => {
+        if (pattern.test(handlerCode)) {
           if (!analysis.responses["404"]) {
+            // Look for the actual 404 response content
+            const notFoundMatch = handlerCode.match(
+              /res\.status\(\s*404\s*\)\.json\s*\(\s*([^)]+)\s*\)/
+            );
+
+            let schema = {
+              type: "object",
+              properties: {
+                message: { type: "string" },
+              },
+            };
+
+            if (notFoundMatch) {
+              const responseContent = notFoundMatch[1];
+              schema = analyzeResponseSchema(
+                responseContent,
+                handlerCode,
+                "404",
+                notFoundMatch[0]
+              );
+            }
+
             analysis.responses["404"] = {
               description: "Resource not found",
               content: {
                 "application/json": {
-                  schema: {
-                    type: "object",
-                    properties: {
-                      message: { type: "string" },
-                    },
-                  },
+                  schema,
                 },
               },
             };
           }
         }
-      }
+      });
 
       // Ensure at least one success response exists
       if (Object.keys(analysis.responses).length === 0) {
@@ -339,19 +381,55 @@ function extractRoutesFromExpressApp(fileContent) {
       return analysis;
     }
 
-    // Enhanced response schema analysis
-    function analyzeResponseSchema(dataExpression, handlerCode, statusCode) {
+    // Enhanced response schema analysis with precise type detection
+    function analyzeResponseSchema(
+      dataExpression,
+      handlerCode,
+      statusCode,
+      fullMatch
+    ) {
       if (!dataExpression) {
         return { type: "object" };
       }
 
       const expr = dataExpression.trim();
 
-      // Handle specific patterns
+      // Handle message-only responses
+      if (
+        expr.includes("message:") ||
+        expr.includes("'message'") ||
+        expr.includes('"message"')
+      ) {
+        return {
+          type: "object",
+          properties: {
+            message: { type: "string" },
+          },
+        };
+      }
+
+      // Handle specific literal messages
+      if (
+        expr.includes("'Todo deleted'") ||
+        expr.includes('"Todo deleted"') ||
+        expr.includes("'deleted'") ||
+        expr.includes('"deleted"')
+      ) {
+        return {
+          type: "object",
+          properties: {
+            message: { type: "string" },
+          },
+        };
+      }
+
+      // Handle array responses
       if (
         expr.includes("todos") ||
         expr.includes("users") ||
-        expr.includes("items")
+        expr.includes("items") ||
+        handlerCode.includes(".find()") ||
+        handlerCode.includes(".findAll()")
       ) {
         return {
           type: "array",
@@ -362,10 +440,12 @@ function extractRoutesFromExpressApp(fileContent) {
         };
       }
 
+      // Handle single object responses
       if (
-        expr.includes("Todo") ||
-        expr.includes("User") ||
-        expr.includes("Item")
+        expr.includes("newTodo") ||
+        expr.includes("updatedTodo") ||
+        expr.includes("todo") ||
+        expr.includes("Todo")
       ) {
         return {
           type: "object",
@@ -373,22 +453,47 @@ function extractRoutesFromExpressApp(fileContent) {
         };
       }
 
-      if (
-        expr.includes("newTodo") ||
-        expr.includes("updatedTodo") ||
-        expr.includes("deletedTodo")
-      ) {
+      // Handle specific status codes
+      if (statusCode === "201") {
         return {
           type: "object",
-          properties: {
-            _id: { type: "string" },
-            title: { type: "string" },
-            completed: { type: "boolean" },
-          },
+          properties: inferObjectProperties(expr, handlerCode),
         };
       }
 
-      if (expr.includes("{ message:") || expr.includes("'Todo deleted'")) {
+      if (statusCode === "200") {
+        // Check if it's an array response
+        if (
+          handlerCode.includes(".find()") &&
+          !handlerCode.includes(".findById")
+        ) {
+          return {
+            type: "array",
+            items: {
+              type: "object",
+              properties: inferObjectProperties(expr, handlerCode),
+            },
+          };
+        }
+
+        // Check if it's a message response
+        if (fullMatch && fullMatch.includes("message")) {
+          return {
+            type: "object",
+            properties: {
+              message: { type: "string" },
+            },
+          };
+        }
+
+        return {
+          type: "object",
+          properties: inferObjectProperties(expr, handlerCode),
+        };
+      }
+
+      // Default error response
+      if (["400", "404", "500"].includes(statusCode)) {
         return {
           type: "object",
           properties: {
@@ -397,60 +502,94 @@ function extractRoutesFromExpressApp(fileContent) {
         };
       }
 
-      // Handle common response patterns
-      if (statusCode === "201") {
-        return {
-          type: "object",
-          properties: {
-            _id: { type: "string" },
-            title: { type: "string" },
-            completed: { type: "boolean" },
-          },
-        };
-      }
-
-      if (statusCode === "200" && handlerCode.includes("find()")) {
-        return {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              _id: { type: "string" },
-              title: { type: "string" },
-              completed: { type: "boolean" },
-            },
-          },
-        };
-      }
-
       return { type: "object" };
     }
 
-    // Infer object properties from code context
+    // Enhanced object properties inference
     function inferObjectProperties(expression, handlerCode) {
       const properties = {};
 
-      // Common MongoDB/Mongoose patterns
+      // Common MongoDB/Mongoose patterns for Todo
       if (handlerCode.includes("Todo") || handlerCode.includes("todo")) {
         properties._id = { type: "string" };
         properties.title = { type: "string" };
         properties.completed = { type: "boolean" };
+
+        // Look for additional properties in the code
+        const titleMatch = handlerCode.match(/title:\s*req\.body\.title/);
+        if (titleMatch) {
+          properties.title = { type: "string" };
+        }
+
+        const completedMatch = handlerCode.match(
+          /completed:\s*req\.body\.completed/
+        );
+        if (completedMatch) {
+          properties.completed = { type: "boolean" };
+        }
       }
 
+      // Common User patterns
       if (handlerCode.includes("User") || handlerCode.includes("user")) {
         properties._id = { type: "string" };
         properties.name = { type: "string" };
         properties.email = { type: "string" };
+
+        if (handlerCode.includes("age")) {
+          properties.age = { type: "integer" };
+        }
       }
 
-      // Look for property assignments in the code
-      const propertyMatches = handlerCode.match(/(\w+):\s*req\.body\.(\w+)/g);
-      if (propertyMatches) {
-        propertyMatches.forEach((match) => {
-          const parts = match.split(":");
-          if (parts.length === 2) {
-            const propName = parts[0].trim();
-            properties[propName] = { type: "string" };
+      // Look for new object creation patterns
+      const newObjectMatches = handlerCode.match(
+        /new\s+\w+\s*\(\s*\{([^}]+)\}\s*\)/g
+      );
+      if (newObjectMatches) {
+        newObjectMatches.forEach((match) => {
+          const propsMatch = match.match(/\{([^}]+)\}/);
+          if (propsMatch) {
+            const props = propsMatch[1].split(",");
+            props.forEach((prop) => {
+              const propMatch = prop.match(/(\w+):\s*req\.body\.(\w+)/);
+              if (propMatch) {
+                const propName = propMatch[1].trim();
+                const bodyProp = propMatch[2].trim();
+
+                // Infer type based on property name
+                let type = "string";
+                if (
+                  propName === "completed" ||
+                  propName === "active" ||
+                  propName === "enabled"
+                ) {
+                  type = "boolean";
+                } else if (
+                  propName === "age" ||
+                  propName === "count" ||
+                  propName === "price"
+                ) {
+                  type = "integer";
+                }
+
+                properties[propName] = { type };
+              }
+            });
+          }
+        });
+      }
+
+      // Look for findByIdAndUpdate patterns
+      const updateMatches = handlerCode.match(
+        /findByIdAndUpdate\s*\([^,]+,\s*\{([^}]+)\}/g
+      );
+      if (updateMatches) {
+        updateMatches.forEach((match) => {
+          const propsMatch = match.match(/\{([^}]+)\}/);
+          if (propsMatch) {
+            const updateProps = propsMatch[1];
+            if (updateProps.includes("completed")) {
+              properties.completed = { type: "boolean" };
+            }
           }
         });
       }
@@ -481,11 +620,24 @@ function extractRoutesFromExpressApp(fileContent) {
       if (paramMatches) {
         paramMatches.forEach((match) => {
           const paramName = match.substring(1);
+
+          // Infer parameter type based on name
+          let type = "string";
+          if (paramName === "id" || paramName.endsWith("Id")) {
+            type = "string"; // MongoDB ObjectId is typically string
+          } else if (
+            paramName === "page" ||
+            paramName === "limit" ||
+            paramName === "count"
+          ) {
+            type = "integer";
+          }
+
           params.push({
             name: paramName,
             in: "path",
             required: true,
-            schema: { type: "string" },
+            schema: { type },
           });
         });
       }
@@ -621,9 +773,25 @@ function generateOpenAPISpec(routes) {
     const summary = `${method.toUpperCase()} ${operationPath}`;
     const operationId = `${method}${path.replace(/[^a-zA-Z0-9]/g, "")}`;
 
-    // Determine tags based on path structure
-    const pathSegments = path.split("/").filter(Boolean);
-    const tag = pathSegments.length > 0 ? pathSegments[0] : "default";
+    // Enhanced tagging - use consistent resource-based tags
+    let tag = "default";
+    if (path.includes("todo") || path.includes("Todo")) {
+      tag = "Todos";
+    } else if (path.includes("user") || path.includes("User")) {
+      tag = "Users";
+    } else {
+      // Use first path segment as tag, but make it descriptive
+      const pathSegments = path.split("/").filter(Boolean);
+      if (pathSegments.length > 0) {
+        const firstSegment = pathSegments[0];
+        if (firstSegment.startsWith("{") && firstSegment.endsWith("}")) {
+          // If first segment is a parameter, use a generic tag
+          tag = "Resources";
+        } else {
+          tag = firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1);
+        }
+      }
+    }
 
     paths[path][method] = {
       summary,
