@@ -1,0 +1,44 @@
+openapi: 3.0.0
+info:
+  title: Express API (Auto Generated)
+  version: 1.0.0
+paths:
+  /api/users:
+    get:
+      summary: Auto-generated GET /api/users
+      responses:
+        '200':
+          description: Success
+    post:
+      summary: Auto-generated POST /api/users
+      responses:
+        '200':
+          description: Success
+  /api/users/:id:
+    get:
+      summary: Auto-generated GET /api/users/:id
+      responses:
+        '200':
+          description: Success
+    put:
+      summary: Auto-generated PUT /api/users/:id
+      responses:
+        '200':
+          description: Success
+    delete:
+      summary: Auto-generated DELETE /api/users/:id
+      responses:
+        '200':
+          description: Success
+  /api/users/search:
+    get:
+      summary: Auto-generated GET /api/users/search
+      responses:
+        '200':
+          description: Success
+  /health:
+    get:
+      summary: Auto-generated GET /health
+      responses:
+        '200':
+          description: Success
