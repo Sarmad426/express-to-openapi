@@ -1,31 +1,62 @@
 {
   "name": "express-to-openapi",
   "version": "1.0.0",
-  "description": "A CLI tool to generate OpenAPI specifications from Express.js applications",
+  "description": "🚀 Convert Express.js applications to OpenAPI 3.0 specifications and schema generation",
   "main": "src/express-to-openapi.js",
   "type": "module",
   "bin": {
-    "express-to-openapi": "src/express-to-openapi.js"
+    "express-to-openapi": "./src/express-to-openapi.js"
   },
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "test": "node test/test-spec.js",
-    "generate": "node src/express-to-openapi.js"
+    "generate": "node src/express-to-openapi.js",
+    "prepublishOnly": "npm test",
+    "postinstall": "echo '🚀 express-to-openapi installed successfully! Use: express-to-openapi <app.js> [json|yaml]'"
   },
   "keywords": [
     "express",
-    "node",
-    "application"
+    "openapi",
+    "swagger",
+    "api",
+    "documentation",
+    "generator",
+    "cli",
+    "rest",
+    "nodejs",
+    "javascript",
+    "specification",
+    "schema",
+    "routes",
+    "endpoints"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": {
+    "name": "Sarmad",
+    "email": "sarmadrafique040@gmail.com",
+    "url": "https://github.com/Sarmad426"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sarmad426/express-to-openapi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Sarmad426/express-to-openapi/issues"
+  },
+  "homepage": "https://github.com/Sarmad426/express-to-openapi#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "files": [
+    "src/express-to-openapi.js",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "acorn": "8.14.1",
     "acorn-walk": "8.3.4",
-    "cors": "^2.8.5",
-    "express": "^4.17.1",
-    "helmet": "^4.6.0",
+    "js-yaml": "4.1.0",
     "prettier": "3.5.3"
   },
   "devDependencies": {
@@ -36,9 +67,15 @@
     "@types/babel__traverse": "7.20.7",
     "@types/js-yaml": "4.0.9",
     "commander": "14.0.0",
-    "js-yaml": "4.1.0",
+    "cors": "^2.8.5",
+    "express": "^4.17.1",
+    "helmet": "^4.6.0",
     "nodemon": "^2.0.7",
     "ts-node": "10.9.2",
     "typescript": "5.8.3"
+  },
+  "preferGlobal": true,
+  "publishConfig": {
+    "access": "public"
   }
 }
