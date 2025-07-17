@@ -1,0 +1,51 @@
+# Test files
+test/
+src/app.js
+*.test.js
+*.spec.js
+
+# Development files
+.git/
+.gitignore
+*.log
+.DS_Store
+.env
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# CI/CD files
+.github/
+.travis.yml
+.circle.yml
+
+# Documentation source
+docs/
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# Generated files during development
+openapi.json
+openapi.yaml
+
+# Development dependencies artifacts
+coverage/
+.nyc_output
+
+# Node modules (will be installed by npm)
+node_modules/
+
+# Package manager files
+package-lock.json
+yarn.lock
+.pnpm-lock.yaml
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
