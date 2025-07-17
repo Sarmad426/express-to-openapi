@@ -1,6 +1,6 @@
 {
   "name": "express-to-openapi",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "🚀 Convert Express.js applications to OpenAPI 3.0 specifications and schema generation",
   "main": "src/express-to-openapi.js",
   "type": "module",
@@ -12,8 +12,7 @@
     "dev": "nodemon src/app.js",
     "test": "node test/test-spec.js",
     "generate": "node src/express-to-openapi.js",
-    "prepublishOnly": "npm test",
-    "postinstall": "echo '🚀 express-to-openapi installed successfully! Use: express-to-openapi <app.js> [json|yaml]'"
+    "prepublishOnly": "npm test"
   },
   "keywords": [
     "express",
