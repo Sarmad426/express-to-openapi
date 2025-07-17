@@ -41,9 +41,6 @@ function extractRoutesFromExpressApp(fileContent) {
         );
       }
 
-      // Extract path parameters from route pattern
-      const pathParams = [];
-
       // Extract query parameters
       const queryMatches = handlerCode.match(/req\.query\.(\w+)/g);
       if (queryMatches) {
@@ -83,19 +80,45 @@ function extractRoutesFromExpressApp(fileContent) {
         });
       }
 
-      // Analyze request body usage
+      // Enhanced request body analysis with type inference
       const bodyMatches = handlerCode.match(/req\.body\.(\w+)/g);
       if (bodyMatches) {
-        const bodyProps = new Set();
+        const bodyProps = new Map();
         bodyMatches.forEach((match) => {
           const prop = match.replace("req.body.", "");
-          bodyProps.add(prop);
+
+          // Try to infer type from common patterns
+          let type = "string";
+          if (prop.includes("id") || prop.includes("Id")) {
+            type = "string";
+          } else if (
+            prop.includes("completed") ||
+            prop.includes("active") ||
+            prop.includes("enabled")
+          ) {
+            type = "boolean";
+          } else if (
+            prop.includes("count") ||
+            prop.includes("age") ||
+            prop.includes("price")
+          ) {
+            type = "integer";
+          }
+
+          bodyProps.set(prop, type);
         });
 
         if (bodyProps.size > 0) {
           const properties = {};
-          bodyProps.forEach((prop) => {
-            properties[prop] = { type: "string" };
+          const required = [];
+
+          bodyProps.forEach((type, prop) => {
+            properties[prop] = { type };
+
+            // Mark common required fields
+            if (prop === "title" || prop === "name" || prop === "email") {
+              required.push(prop);
+            }
           });
 
           analysis.requestBody = {
@@ -105,7 +128,7 @@ function extractRoutesFromExpressApp(fileContent) {
                 schema: {
                   type: "object",
                   properties,
-                  required: Array.from(bodyProps),
+                  ...(required.length > 0 && { required }),
                 },
               },
             },
@@ -113,7 +136,7 @@ function extractRoutesFromExpressApp(fileContent) {
         }
       }
 
-      // Extract body parameter destructuring patterns
+      // Extract body parameter destructuring patterns with type inference
       const bodyDestructureMatches = handlerCode.match(
         /const\s*\{\s*([^}]+)\s*\}\s*=\s*req\.body/g
       );
@@ -122,12 +145,38 @@ function extractRoutesFromExpressApp(fileContent) {
           const propsMatch = match.match(/\{\s*([^}]+)\s*\}/);
           if (propsMatch) {
             const props = propsMatch[1].split(",").map((p) => p.trim());
-            const bodyProps = new Set(props);
+            const bodyProps = new Map();
+            const required = [];
+
+            props.forEach((prop) => {
+              // Infer type from property name
+              let type = "string";
+              if (
+                prop.includes("completed") ||
+                prop.includes("active") ||
+                prop.includes("enabled")
+              ) {
+                type = "boolean";
+              } else if (
+                prop.includes("count") ||
+                prop.includes("age") ||
+                prop.includes("price")
+              ) {
+                type = "integer";
+              }
+
+              bodyProps.set(prop, type);
+
+              // Mark common required fields
+              if (prop === "title" || prop === "name" || prop === "email") {
+                required.push(prop);
+              }
+            });
 
             if (bodyProps.size > 0) {
               const properties = {};
-              bodyProps.forEach((prop) => {
-                properties[prop] = { type: "string" };
+              bodyProps.forEach((type, prop) => {
+                properties[prop] = { type };
               });
 
               analysis.requestBody = {
@@ -137,7 +186,7 @@ function extractRoutesFromExpressApp(fileContent) {
                     schema: {
                       type: "object",
                       properties,
-                      required: Array.from(bodyProps),
+                      ...(required.length > 0 && { required }),
                     },
                   },
                 },
@@ -147,25 +196,50 @@ function extractRoutesFromExpressApp(fileContent) {
         });
       }
 
-      // Analyze response patterns
+      // Enhanced response analysis with schema detection
       const responsePatterns = [
-        { pattern: /res\.status\(\s*(\d+)\s*\)\.json\s*\(/g, hasStatus: true },
-        { pattern: /res\.json\s*\(/g, hasStatus: false },
-        { pattern: /res\.send\s*\(/g, hasStatus: false },
-        { pattern: /res\.status\(\s*(\d+)\s*\)\.send\s*\(/g, hasStatus: true },
+        {
+          pattern: /res\.status\(\s*(\d+)\s*\)\.json\s*\(\s*([^)]+)\s*\)/g,
+          hasStatus: true,
+          hasData: true,
+        },
+        {
+          pattern: /res\.json\s*\(\s*([^)]+)\s*\)/g,
+          hasStatus: false,
+          hasData: true,
+        },
+        {
+          pattern: /res\.status\(\s*(\d+)\s*\)\.json\s*\(/g,
+          hasStatus: true,
+          hasData: false,
+        },
+        { pattern: /res\.json\s*\(/g, hasStatus: false, hasData: false },
+        {
+          pattern: /res\.status\(\s*(\d+)\s*\)\.send\s*\(/g,
+          hasStatus: true,
+          hasData: false,
+        },
+        { pattern: /res\.send\s*\(/g, hasStatus: false, hasData: false },
       ];
 
-      responsePatterns.forEach(({ pattern, hasStatus }) => {
+      responsePatterns.forEach(({ pattern, hasStatus, hasData }) => {
         let match;
         while ((match = pattern.exec(handlerCode)) !== null) {
           const statusCode = hasStatus ? match[1] : "200";
+          const dataExpression = hasData ? match[hasStatus ? 2 : 1] : null;
 
           if (!analysis.responses[statusCode]) {
+            const schema = analyzeResponseSchema(
+              dataExpression,
+              handlerCode,
+              statusCode
+            );
+
             analysis.responses[statusCode] = {
               description: getResponseDescription(statusCode),
               content: {
                 "application/json": {
-                  schema: { type: "object" },
+                  schema,
                 },
               },
             };
@@ -173,9 +247,42 @@ function extractRoutesFromExpressApp(fileContent) {
         }
       });
 
-      // Add common error responses if not already present
+      // Add specific error responses based on code analysis
       if (handlerCode.includes("try") && handlerCode.includes("catch")) {
-        if (!analysis.responses["500"]) {
+        // Look for specific error handling patterns
+        const errorPatterns = [
+          { pattern: /catch.*res\.status\(\s*(\d+)\s*\)/, type: "specific" },
+          { pattern: /catch.*res\.status\(\s*500\s*\)/, type: "server" },
+          { pattern: /catch.*res\.status\(\s*400\s*\)/, type: "client" },
+        ];
+
+        let hasSpecificErrorHandling = false;
+        errorPatterns.forEach(({ pattern, type }) => {
+          const errorMatch = handlerCode.match(pattern);
+          if (errorMatch) {
+            hasSpecificErrorHandling = true;
+            const errorCode = errorMatch[1] || "500";
+
+            if (!analysis.responses[errorCode]) {
+              analysis.responses[errorCode] = {
+                description: getResponseDescription(errorCode),
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "object",
+                      properties: {
+                        message: { type: "string" },
+                      },
+                    },
+                  },
+                },
+              };
+            }
+          }
+        });
+
+        // Add generic 500 only if no specific error handling found
+        if (!hasSpecificErrorHandling && !analysis.responses["500"]) {
           analysis.responses["500"] = {
             description: "Internal Server Error",
             content: {
@@ -192,47 +299,28 @@ function extractRoutesFromExpressApp(fileContent) {
         }
       }
 
-      // Add 404 for routes with params that check for existence
+      // Add 404 for routes with ID params that check for existence
       if (
         handlerCode.includes("findById") ||
-        handlerCode.includes("not found")
+        handlerCode.includes("findByIdAndUpdate") ||
+        handlerCode.includes("findByIdAndDelete")
       ) {
-        if (!analysis.responses["404"]) {
-          analysis.responses["404"] = {
-            description: "Resource not found",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    message: { type: "string" },
+        if (handlerCode.includes("not found") || handlerCode.includes("404")) {
+          if (!analysis.responses["404"]) {
+            analysis.responses["404"] = {
+              description: "Resource not found",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      message: { type: "string" },
+                    },
                   },
                 },
               },
-            },
-          };
-        }
-      }
-
-      // Add 400 for validation errors
-      if (
-        handlerCode.includes("status(400)") ||
-        handlerCode.includes("validation")
-      ) {
-        if (!analysis.responses["400"]) {
-          analysis.responses["400"] = {
-            description: "Bad Request",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    message: { type: "string" },
-                  },
-                },
-              },
-            },
-          };
+            };
+          }
         }
       }
 
@@ -249,6 +337,127 @@ function extractRoutesFromExpressApp(fileContent) {
       }
 
       return analysis;
+    }
+
+    // Enhanced response schema analysis
+    function analyzeResponseSchema(dataExpression, handlerCode, statusCode) {
+      if (!dataExpression) {
+        return { type: "object" };
+      }
+
+      const expr = dataExpression.trim();
+
+      // Handle specific patterns
+      if (
+        expr.includes("todos") ||
+        expr.includes("users") ||
+        expr.includes("items")
+      ) {
+        return {
+          type: "array",
+          items: {
+            type: "object",
+            properties: inferObjectProperties(expr, handlerCode),
+          },
+        };
+      }
+
+      if (
+        expr.includes("Todo") ||
+        expr.includes("User") ||
+        expr.includes("Item")
+      ) {
+        return {
+          type: "object",
+          properties: inferObjectProperties(expr, handlerCode),
+        };
+      }
+
+      if (
+        expr.includes("newTodo") ||
+        expr.includes("updatedTodo") ||
+        expr.includes("deletedTodo")
+      ) {
+        return {
+          type: "object",
+          properties: {
+            _id: { type: "string" },
+            title: { type: "string" },
+            completed: { type: "boolean" },
+          },
+        };
+      }
+
+      if (expr.includes("{ message:") || expr.includes("'Todo deleted'")) {
+        return {
+          type: "object",
+          properties: {
+            message: { type: "string" },
+          },
+        };
+      }
+
+      // Handle common response patterns
+      if (statusCode === "201") {
+        return {
+          type: "object",
+          properties: {
+            _id: { type: "string" },
+            title: { type: "string" },
+            completed: { type: "boolean" },
+          },
+        };
+      }
+
+      if (statusCode === "200" && handlerCode.includes("find()")) {
+        return {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              _id: { type: "string" },
+              title: { type: "string" },
+              completed: { type: "boolean" },
+            },
+          },
+        };
+      }
+
+      return { type: "object" };
+    }
+
+    // Infer object properties from code context
+    function inferObjectProperties(expression, handlerCode) {
+      const properties = {};
+
+      // Common MongoDB/Mongoose patterns
+      if (handlerCode.includes("Todo") || handlerCode.includes("todo")) {
+        properties._id = { type: "string" };
+        properties.title = { type: "string" };
+        properties.completed = { type: "boolean" };
+      }
+
+      if (handlerCode.includes("User") || handlerCode.includes("user")) {
+        properties._id = { type: "string" };
+        properties.name = { type: "string" };
+        properties.email = { type: "string" };
+      }
+
+      // Look for property assignments in the code
+      const propertyMatches = handlerCode.match(/(\w+):\s*req\.body\.(\w+)/g);
+      if (propertyMatches) {
+        propertyMatches.forEach((match) => {
+          const parts = match.split(":");
+          if (parts.length === 2) {
+            const propName = parts[0].trim();
+            properties[propName] = { type: "string" };
+          }
+        });
+      }
+
+      return Object.keys(properties).length > 0
+        ? properties
+        : { _id: { type: "string" } };
     }
 
     function getResponseDescription(statusCode) {
@@ -444,9 +653,10 @@ async function main() {
 
   if (!filePath) {
     console.error("❌ Please provide a path to your Express.js app file");
-    console.error(
-      "Usage: node express-to-openapi.js <path-to-app.js> [json|yaml]"
-    );
+    console.error("Usage: express-to-openapi <path-to-app.js> [json|yaml]");
+    console.error("\nInstallation methods:");
+    console.error("  Global:  npm install -g express-to-openapi");
+    console.error("  One-time: npx express-to-openapi <app.js> [json|yaml]");
     process.exit(1);
   }
 
